@@ -15,7 +15,7 @@ KEY = "efsq4zyub5xzs2sa57hg4b6d"
 class Movie(object):
 
     def __init__(self, movie_id, title):
-        #WHAT
+
         assert isinstance(title, unicode), "Name {0} is of type {1}".format(title, type(title))
         self.movie_id = movie_id
         self.title = title

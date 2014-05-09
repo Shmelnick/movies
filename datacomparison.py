@@ -10,9 +10,9 @@ from collections import Counter as ctr
 
 def compare_singles(e1, e2):
     if e1 == e2:
-        return 1
-    else:
         return 0
+    else:
+        return 1
 
 
 def compare_arrays(a1, a2, coeff=1):
