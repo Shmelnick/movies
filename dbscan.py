@@ -29,11 +29,15 @@ class MyDBSCAN(BaseEstimator):
         self.distances_computed = False
 
     def fit(self, x):
+        self.distances_computed = False
         self.compute_distances(x)
         self.predicted_cluster = self.dbscan(x, self.eps, self.min_samples)
         return self
 
     def compute_distances(self, x):
+        """
+        Pre-save matrix of distances between every pair of Movies
+        """
         self.distances_computed = False
         self.samples = x
         self.samples_amount = len(x)
@@ -46,6 +50,10 @@ class MyDBSCAN(BaseEstimator):
         self.distances_computed = True
 
     def neighbours(self, obj_i, eps):
+        """
+        Find all neighbours of point with index obj_i
+        Returns indexes of neighbours
+        """
         res = list()
         for i in xrange(self.samples_amount):
             if self.distance(obj_i, i) <= eps:
@@ -53,6 +61,10 @@ class MyDBSCAN(BaseEstimator):
         return res
 
     def dbscan(self, x, eps, min_pts):
+        """
+        DBSCAN main function with added data preprocessing
+        Returns: numpy array of cluster labels - if label==0: noise
+        """
         self.eps = eps
         self.min_samples = min_pts
         self.last_cluster_index = 0
@@ -61,6 +73,7 @@ class MyDBSCAN(BaseEstimator):
         self.visited = [False]*self.samples_amount
         self.predicted_cluster = [0]*self.samples_amount
 
+        # Find center of new cluster
         for i in xrange(self.samples_amount):
             if self.visited[i]:
                 continue
@@ -71,9 +84,12 @@ class MyDBSCAN(BaseEstimator):
             else:
                 self.last_cluster_index += 1
                 self.expand_cluster(i, nbr)
-        return numpy.array(self.predicted_cluster)
+        return numpy.array(self.predicted_cluster).clip(0)
 
     def expand_cluster(self, i, nbr):
+        """
+        DBSCAN second function
+        """
         self.predicted_cluster[i] = self.last_cluster_index
         for j in nbr:
             if not self.visited[j]:
@@ -84,20 +100,68 @@ class MyDBSCAN(BaseEstimator):
                         self.predicted_cluster[j] = self.last_cluster_index
 
     def distance(self, i1, i2):
+        """
+        Method tries to find distance in pre-saved matrix - if not - this will be computed
+        """
         if self.distances_computed:
             return self.distances[i1][i2]
         return self.d(self.samples[i1], self.samples[i2])
 
     def d(self, obj1, obj2):
+        """
+        Calculate distance between obj1 and obj2 based only on 2 features: actors and studios
+        """
         d1 = datacomparison.compare_arrays(obj1.abridged_cast_names, obj2.abridged_cast_names)
         d2 = datacomparison.compare_singles(obj1.studio, obj2.studio)
         return (d1**2 + d2**2)**0.5
 
+    def silhouette(self, movies, labels, dist):
+        """
+        Used to check clusterization quality
+        e_nikolaev
+        """
+        n = len(set(labels))
+        all = len(labels)
+        clusters = dict([(i, []) for i in xrange(n)])
+        for i in range(all):
+            c = labels[i]
+            clusters[c].append(movies[i])
+
+        s = 0
+        for i in xrange(all):
+            a = 0
+            b = 1000
+            for c in clusters:
+                if c != labels[i]:
+                    cur_b = 0
+                    for el in clusters[c]:
+                        cur_b += dist(movies[i], el)
+                    cur_b /= float(len(clusters[c]))
+                    if cur_b < b:
+                        b = cur_b
+                else:
+                    for el in clusters[c]:
+                        a += dist(movies[i], el)
+                    a /= float(len(clusters[c]))
+
+            s += (b-a)/float(max(a, b))
+
+        return s/float(all)
+
+
+def jaccard(A, B):
+    sA = set(A)
+    sB = set(B)
+    return len(sA.intersection(sB)) / float(len(sA.union(sB)))
+
 
 def generate_data(n):
-        print "Generating data set with %s clusters" % n
-        centers = numpy.random.randint(10, size=(n, 2))
-        return sklearn.datasets.make_blobs(n_samples=500, centers=centers, cluster_std=1)
+    """
+    Generate n clusters with random data
+    """
+    print "Generating data set with %s clusters" % n
+    centers = numpy.random.randint(10, size=(n, 2))
+    return sklearn.datasets.make_blobs(n_samples=500, centers=centers, cluster_std=1)
 
 
 def plot_data(x, labels):
@@ -107,7 +171,17 @@ def plot_data(x, labels):
         pylab.scatter(x[labels == label, 0], x[labels == label, 1], c=colors)
 
 
+def get_check_array(movies):
+    """
+    Returns array with features for check clusterization quality (genres)
+    """
+    return [m.genres for m in movies]
+
+
 def read_file():
+    """
+    Returns list of Movie objects - read from file "data.csv"
+    """
     movies = []
     with open('data.csv', 'rb') as csvfile:
         reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
@@ -133,7 +207,7 @@ def read_file():
             movies.append(movie)
 
             cur += l
-    print '\nDone: '+str(len(movies))
+    print '\nReading finished: '+str(len(movies))
     return movies
 
 
@@ -145,14 +219,16 @@ def main():
 
     my_clf = MyDBSCAN()
     my_clf.compute_distances(x)
-    print "d comp"
-    #print my_clf.distances
+    print "distances computed"
+
     predicted = my_clf.dbscan(x, eps=1, min_pts=50)
     print numpy.unique(predicted)
 
-    y = numpy.bincount(predicted.clip(0))
+    y = numpy.bincount(predicted)
     ii = numpy.nonzero(y)[0]
     print zip(ii, y[ii])
+
+    print "Quality: ", my_clf.silhouette(get_check_array(x), predicted, jaccard)
 
     #plot_data(x, predicted)
     #pylab.show()
