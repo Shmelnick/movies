@@ -41,6 +41,28 @@ def compare_arrays(a1, a2, coeff=1):
     #return (l_union - max(l1, l2))*1.0 / min(l1, l2)       its not cool
 
 
+def compare_ratings(r1, r2):
+    return float(abs(int(r1) - int(r2))) / 4
+
+
+def compare_runtime(t1, t2):
+    if not t1:
+        t1 = 0
+    if not t2:
+        t2 = 0
+    t1 = (int(t1) / 30) - 2
+    t2 = (int(t2) / 30) - 2
+    if t1 < 0:
+        t1 = 0
+    if t2 < 0:
+        t2 = 0
+    if t1 > 5:
+        t1 = 5
+    if t2 > 5:
+        t2 = 5
+    return float(abs(t1-t2)) / 6
+
+
 def get_centroid(arr):
     """
     Find most resent element of plain array

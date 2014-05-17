@@ -105,54 +105,68 @@ class MyDBSCAN(BaseEstimator):
         """
         if self.distances_computed:
             return self.distances[i1][i2]
-        return self.d(self.samples[i1], self.samples[i2])
+        return d(self.samples[i1], self.samples[i2])
 
-    def d(self, obj1, obj2):
-        """
-        Calculate distance between obj1 and obj2 based only on 2 features: actors and studios
-        """
-        d1 = datacomparison.compare_arrays(obj1.abridged_cast_names, obj2.abridged_cast_names)
-        d2 = datacomparison.compare_singles(obj1.studio, obj2.studio)
-        return (d1**2 + d2**2)**0.5
 
-    def silhouette(self, movies, labels, dist):
-        """
-        Used to check clusterization quality
-        e_nikolaev
-        """
-        n = len(set(labels))
-        all = len(labels)
-        clusters = dict([(i, []) for i in xrange(n)])
-        for i in range(all):
-            c = labels[i]
+def d(obj1, obj2):
+    """
+    Calculate distance between obj1 and obj2 based only on 2 features: actors and studios
+    """
+    d1 = datacomparison.compare_arrays(obj1.abridged_cast_names, obj2.abridged_cast_names, 0.1)
+    d2 = datacomparison.compare_singles(obj1.studio, obj2.studio)
+    d3 = datacomparison.compare_ratings(obj1.mpaa_rating, obj2.mpaa_rating)
+    d4 = datacomparison.compare_singles(obj1.first_director, obj2.first_director)
+    d5 = datacomparison.compare_arrays(obj1.critics_consensus, obj2.critics_consensus)
+    d6 = datacomparison.compare_runtime(obj1.runtime, obj2.runtime)
+    return (d1**2 + d2**2 + d3**2 + d4**2 + d5**2 + d6**2)**0.5
+
+
+def silhouette(movies, labels, dist):
+    """
+    Used to check clusterization quality
+    e_nikolaev
+    """
+    n = max(set(labels)) + 1
+    all = len(labels)
+    clusters = dict([(i, []) for i in xrange(n)])
+    zero = 0
+    for i in range(all):
+        c = labels[i]
+        if c != 0:
             clusters[c].append(movies[i])
+        else:
+            zero += 1
 
-        s = 0
-        for i in xrange(all):
-            a = 0
-            b = 1000
-            for c in clusters:
-                if c != labels[i]:
-                    cur_b = 0
-                    for el in clusters[c]:
-                        cur_b += dist(movies[i], el)
-                    cur_b /= float(len(clusters[c]))
-                    if cur_b < b:
-                        b = cur_b
-                else:
-                    for el in clusters[c]:
-                        a += dist(movies[i], el)
-                    a /= float(len(clusters[c]))
-
+    s = 0
+    for i in xrange(all):
+        if labels[i] == 0:
+            continue
+        a = 0
+        b = 1000
+        for c in clusters:
+            if c == 0:
+                continue
+            if c != labels[i]:
+                cur_b = 0
+                for el in clusters[c]:
+                    cur_b += dist(movies[i], el)
+                cur_b /= float(len(clusters[c]))
+                if cur_b < b:
+                    b = cur_b
+            else:
+                for el in clusters[c]:
+                    a += dist(movies[i], el)
+                a /= float(len(clusters[c]))
+        if max(a, b) != 0:
             s += (b-a)/float(max(a, b))
 
-        return s/float(all)
+    return s/float(all - zero)
 
 
 def jaccard(A, B):
     sA = set(A)
     sB = set(B)
-    return len(sA.intersection(sB)) / float(len(sA.union(sB)))
+    return 1 - len(sA.intersection(sB)) / float(len(sA.union(sB)))
 
 
 def generate_data(n):
@@ -211,6 +225,14 @@ def read_file():
     return movies
 
 
+def print_films_from_cluster(index, x, predicted):
+    res = list()
+    for i in xrange(len(predicted)):
+        if predicted[i] == index:
+            res.append(x[i].title)
+    return res
+
+
 def main():
     print "## Clustering with dbscan ##"
 
@@ -221,14 +243,19 @@ def main():
     my_clf.compute_distances(x)
     print "distances computed"
 
-    predicted = my_clf.dbscan(x, eps=1, min_pts=50)
+    predicted = my_clf.dbscan(x, eps=1.8, min_pts=70)
     print numpy.unique(predicted)
 
     y = numpy.bincount(predicted)
     ii = numpy.nonzero(y)[0]
     print zip(ii, y[ii])
 
-    print "Quality: ", my_clf.silhouette(get_check_array(x), predicted, jaccard)
+    print "Quality: ", silhouette(get_check_array(x), predicted, jaccard)
+    for i in set(predicted):
+        if i == 0:
+            continue
+        print print_films_from_cluster(i, x, predicted)
+
 
     #plot_data(x, predicted)
     #pylab.show()
