@@ -89,13 +89,22 @@ class MyDBSCAN(BaseEstimator):
         DBSCAN second function
         """
         self.predicted_cluster[i] = self.last_cluster_index
-        for j in nbr:
-            if not self.visited[j]:
-                self.visited[j] = True
-                nbr_j = self.neighbours(j, self.eps)
+        index = 0
+        # check every element of neighborhood
+        while index < len(nbr):
+            # el = index in samples
+            el = nbr[index]
+            if not self.visited[el]:
+                self.visited[el] = True
+                nbr_j = self.neighbours(el, self.eps)
                 if len(nbr_j) >= self.min_samples:
-                    if self.predicted_cluster[j] <= 0:
-                        self.predicted_cluster[j] = self.last_cluster_index
+                    # add neighborhood to current cluster
+                    for c_el in nbr_j:
+                        if c_el not in nbr:
+                            nbr.append(c_el)
+            if self.predicted_cluster[el] <= 0:
+                self.predicted_cluster[el] = self.last_cluster_index
+            index += 1
 
     def distance(self, i1, i2):
         """
@@ -116,7 +125,7 @@ def d(obj1, obj2):
     d4 = datacomparison.compare_singles(obj1.first_director, obj2.first_director)
     d5 = datacomparison.compare_arrays(obj1.critics_consensus, obj2.critics_consensus)
     d6 = datacomparison.compare_runtime(obj1.runtime, obj2.runtime)
-    return 2*d1 + d2 + 1.5*d3 + 2*d4 + d5 + 1.5*d6
+    return 10*d1 + 10*d2 + 25*d3 + 10*d4 + 15*d5 + 30*d6
 
 
 def silhouette(movies, labels, dist):
@@ -244,8 +253,8 @@ def print_films_from_cluster(index, x, predicted):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='DBSCAN algorithm')
-    parser.add_argument('-e', dest='eps', type=float, default=5.5, help='Neighborhood of point')
-    parser.add_argument('-p', dest='min_pts', type=int, default=50, help='Min amount of neighbor points')
+    parser.add_argument('-e', dest='eps', type=float, default=30, help='Neighborhood of point')
+    parser.add_argument('-p', dest='min_pts', type=int, default=9, help='Min amount of neighbor points')
     parser.add_argument('-q', action="store_true", default=False, dest='q', help='Show silhouette quality')
     parser.add_argument('-r', action="store_true", default=False, dest='r', help='Show result clusters')
     return parser.parse_args()
