@@ -1,16 +1,14 @@
 
 import numpy
 import numpy.random
-from sklearn.cluster import Ward
 import sklearn.datasets
 import matplotlib.pylab as pylab
-import scipy.spatial.distance as dist
-from sklearn.cluster import dbscan
 from sklearn.base import BaseEstimator
 from getdata import Movie
 import csv
 import time
 import datacomparison
+import argparse
 
 __author__ = 'a_melnikov'
 
@@ -73,7 +71,7 @@ class MyDBSCAN(BaseEstimator):
         self.visited = [False]*self.samples_amount
         self.predicted_cluster = [0]*self.samples_amount
 
-        # Find center of new cluster
+        # Find start of new cluster
         for i in xrange(self.samples_amount):
             if self.visited[i]:
                 continue
@@ -110,7 +108,7 @@ class MyDBSCAN(BaseEstimator):
 
 def d(obj1, obj2):
     """
-    Calculate distance between obj1 and obj2 based only on 2 features: actors and studios
+    Calculate distance between obj1 and obj2 based on 6 features
     """
     d1 = datacomparison.compare_arrays(obj1.abridged_cast_names, obj2.abridged_cast_names, 0.1)
     d2 = datacomparison.compare_singles(obj1.studio, obj2.studio)
@@ -118,7 +116,7 @@ def d(obj1, obj2):
     d4 = datacomparison.compare_singles(obj1.first_director, obj2.first_director)
     d5 = datacomparison.compare_arrays(obj1.critics_consensus, obj2.critics_consensus)
     d6 = datacomparison.compare_runtime(obj1.runtime, obj2.runtime)
-    return (d1**2 + d2**2 + d3**2 + d4**2 + d5**2 + d6**2)**0.5
+    return 2*d1 + d2 + 1.5*d3 + 2*d4 + d5 + 1.5*d6
 
 
 def silhouette(movies, labels, dist):
@@ -130,6 +128,8 @@ def silhouette(movies, labels, dist):
     all = len(labels)
     clusters = dict([(i, []) for i in xrange(n)])
     zero = 0
+
+    # push not-noise-movies into cluster arrays, count noise amount
     for i in range(all):
         c = labels[i]
         if c != 0:
@@ -137,11 +137,17 @@ def silhouette(movies, labels, dist):
         else:
             zero += 1
 
+    if zero == all:
+        return "No clusters detected"
+
     s = 0
     for i in xrange(all):
         if labels[i] == 0:
+            # noise doesn't count
             continue
+        # distance between movie and its cluster
         a = 0
+        # distance between movie and one of another clusters
         b = 1000
         for c in clusters:
             if c == 0:
@@ -163,26 +169,29 @@ def silhouette(movies, labels, dist):
     return s/float(all - zero)
 
 
-def jaccard(A, B):
-    sA = set(A)
-    sB = set(B)
-    return 1 - len(sA.intersection(sB)) / float(len(sA.union(sB)))
-
-
-def generate_data(n):
+def jaccard(a, b):
     """
-    Generate n clusters with random data
+    Jaccard distance between arrays
     """
-    print "Generating data set with %s clusters" % n
-    centers = numpy.random.randint(10, size=(n, 2))
-    return sklearn.datasets.make_blobs(n_samples=500, centers=centers, cluster_std=1)
+    sa = set(a)
+    sb = set(b)
+    return 1 - len(sa.intersection(sb)) / float(len(sa.union(sb)))
 
 
-def plot_data(x, labels):
-    print "Plotting data set"
-    for label in numpy.unique(labels):
-        colors = pylab.cm.jet(numpy.float(label) / numpy.max(labels + 1))
-        pylab.scatter(x[labels == label, 0], x[labels == label, 1], c=colors)
+#def generate_data(n):
+#    """
+#    Generate n clusters with random data
+#    """
+#    print "Generating data set with %s clusters" % n
+#    centers = numpy.random.randint(10, size=(n, 2))
+#    return sklearn.datasets.make_blobs(n_samples=500, centers=centers, cluster_std=1)
+
+
+#def plot_data(x, labels):
+#    print "Plotting data set"
+#    for label in numpy.unique(labels):
+#        colors = pylab.cm.jet(numpy.float(label) / numpy.max(labels + 1))
+#        pylab.scatter(x[labels == label, 0], x[labels == label, 1], c=colors)
 
 
 def get_check_array(movies):
@@ -233,8 +242,18 @@ def print_films_from_cluster(index, x, predicted):
     return res
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='DBSCAN algorithm')
+    parser.add_argument('-e', dest='eps', type=float, default=5.5, help='Neighborhood of point')
+    parser.add_argument('-p', dest='min_pts', type=int, default=50, help='Min amount of neighbor points')
+    parser.add_argument('-q', action="store_true", default=False, dest='q', help='Show silhouette quality')
+    parser.add_argument('-r', action="store_true", default=False, dest='r', help='Show result clusters')
+    return parser.parse_args()
+
+
 def main():
     print "## Clustering with dbscan ##"
+    args = parse_args()
 
     x = read_file()
     #x, cluster_numbers = generate_data(3)
@@ -243,22 +262,25 @@ def main():
     my_clf.compute_distances(x)
     print "distances computed"
 
-    predicted = my_clf.dbscan(x, eps=1.8, min_pts=70)
-    print numpy.unique(predicted)
+    predicted = my_clf.dbscan(x, eps=args.eps, min_pts=args.min_pts)
+    #print numpy.unique(predicted)
 
     y = numpy.bincount(predicted)
     ii = numpy.nonzero(y)[0]
     print zip(ii, y[ii])
 
-    print "Quality: ", silhouette(get_check_array(x), predicted, jaccard)
-    for i in set(predicted):
-        if i == 0:
-            continue
-        print print_films_from_cluster(i, x, predicted)
+    if args.q:
+        print "Quality: ", silhouette(get_check_array(x), predicted, jaccard)
+    if args.r:
+        for i in set(predicted):
+            if i == 0:
+                continue
+            print print_films_from_cluster(i, x, predicted)
 
 
     #plot_data(x, predicted)
     #pylab.show()
+
 
 if __name__ == "__main__":
     main()

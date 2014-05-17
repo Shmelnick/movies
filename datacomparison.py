@@ -23,14 +23,14 @@ def compare_arrays(a1, a2, coeff=1):
     ABCDE : AFG -> (7-5)/3 = 0.29
     ABCDE : AFG coeff=100000 -> (7-5)/3 = 0.665
     """
-    l1 = len(set(a1))
-    l2 = len(set(a2))
+    a1 = set(a1)
+    a2 = set(a2)
+    l1 = len(a1)
+    l2 = len(a2)
     if l1 == 0 or l2 == 0:
         #incorrect data
         return -1
-    l_union = len(set(list(set(a1)) + list(set(a2))))
-    l_l = len(a1 + a2)
-    intersects = l_l - l_union
+    intersects = len(a1.intersection(a2))
     m = min(l1, l2)
 
     # pss.. you want some magic
@@ -47,20 +47,21 @@ def compare_ratings(r1, r2):
 
 def compare_runtime(t1, t2):
     if not t1:
-        t1 = 0
+        if not t2:
+            return 0
+        else:
+            return 1
     if not t2:
-        t2 = 0
-    t1 = (int(t1) / 30) - 2
-    t2 = (int(t2) / 30) - 2
-    if t1 < 0:
-        t1 = 0
-    if t2 < 0:
-        t2 = 0
-    if t1 > 5:
-        t1 = 5
-    if t2 > 5:
-        t2 = 5
-    return float(abs(t1-t2)) / 6
+        return 1
+    low_border = 75
+    top_border = 210
+    t1 = int(t1)
+    t2 = int(t2)
+    t1 = max(t1, low_border)
+    t1 = min(t1, top_border)
+    t2 = max(t2, low_border)
+    t2 = min(t2, top_border)
+    return float(abs(t1-t2)) / (top_border - low_border)
 
 
 def get_centroid(arr):
